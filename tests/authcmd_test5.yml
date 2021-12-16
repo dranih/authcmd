@@ -1,0 +1,4 @@
+expand_env_vars: true
+
+allowed_cmd:
+  - command: echo

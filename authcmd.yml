@@ -1,0 +1,26 @@
+# Print 'denied', so a user can figure out the program was not run.
+show_terse_denied: false
+
+# Show which commands are allowed
+show_allowed: false
+
+# Feed back a denied command line to the invoking user
+show_denied: false
+
+# Should we expand the env vars ?
+expand_env_vars: false
+
+# Show a help text to the user.  The text is everything after the line
+# with the help_text token to the end of the file.
+help_text: "This is the help text shown, when you send a command line which is not accepted."
+
+# Allowed cmd
+allowed_cmd:
+  - command: id
+  - command: /bin/echo
+    args: # Golang regex
+      forbidden: [\$]
+      replace: {"pizza$":"pasta"}
+  - command: ls
+    args:
+      allowed: [-l .*]

@@ -1,0 +1,5 @@
+show_allowed: true
+
+# Allowed cmd
+allowed_cmd:
+  - command: id
