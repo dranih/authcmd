@@ -21,6 +21,7 @@ type Config struct {
 	Expand_env_vars   bool
 	Enable_logging    bool
 	Log_file          string
+	Use_shell         string
 	Help_text         string
 	Allowed_cmd       []*cmd
 }
@@ -50,13 +51,14 @@ func main() {
 	if err != nil {
 		deny(err)
 	}
+	originalArgs := strings.TrimPrefix(originalCmd, parsedOriginalCmd[0])
 
 	for _, allowedCmd := range config.Allowed_cmd {
 		allowed := allowedCmd.Command
 		// If allowed starts with / we want exact match
 		if strings.HasPrefix(allowed, "/") {
 			if allowed == parsedOriginalCmd[0] {
-				try(allowedCmd, parsedOriginalCmd[1:])
+				try(allowedCmd, originalArgs)
 			} else {
 				continue
 			}
@@ -66,7 +68,7 @@ func main() {
 		if strings.HasPrefix(parsedOriginalCmd[0], "/") {
 			if allowedPath, err := exec.LookPath(allowed); err == nil {
 				if allowedPath == parsedOriginalCmd[0] {
-					try(allowedCmd, parsedOriginalCmd[1:])
+					try(allowedCmd, originalArgs)
 				} else {
 					continue
 				}
@@ -75,7 +77,7 @@ func main() {
 
 		// both are relative paths or filenames
 		if allowed == parsedOriginalCmd[0] {
-			try(allowedCmd, parsedOriginalCmd[1:])
+			try(allowedCmd, originalArgs)
 		}
 	}
 
@@ -180,13 +182,12 @@ func deny(err error) {
 	os.Exit(1)
 }
 
-func try(allowedCmd *cmd, parsedOriginalArgs []string) {
-	joinedArgs := strings.Join(parsedOriginalArgs, " ")
+func try(allowedCmd *cmd, originalArgs string) {
 	if allowedCmd.Args != nil {
 		for _, forbiddenRegex := range allowedCmd.Args.Forbidden {
-			if matched, e := regexp.MatchString(forbiddenRegex, joinedArgs); e == nil {
+			if matched, e := regexp.MatchString(forbiddenRegex, originalArgs); e == nil {
 				if matched {
-					deny(fmt.Errorf("command `%s` arguments : `%s` forbidden : regex `%s`", allowedCmd.Command, joinedArgs, forbiddenRegex))
+					deny(fmt.Errorf("command `%s` arguments : `%s` forbidden : regex `%s`", allowedCmd.Command, originalArgs, forbiddenRegex))
 				}
 			} else {
 				writeLog("Unable to compile regex %s, got %s", forbiddenRegex, e.Error())
@@ -196,35 +197,47 @@ func try(allowedCmd *cmd, parsedOriginalArgs []string) {
 		if len(allowedCmd.Args.Allowed) > 0 {
 			found := false
 			for _, allowedRegex := range allowedCmd.Args.Allowed {
-				if matched, e := regexp.MatchString(allowedRegex, joinedArgs); e == nil {
+				if matched, e := regexp.MatchString(allowedRegex, originalArgs); e == nil {
 					found = matched
 				} else {
 					writeLog("Unable to compile regex %s, got %s", allowedRegex, e.Error())
 				}
 			}
 			if !found {
-				deny(fmt.Errorf("command `%s` arguments : `%s` not allowed", allowedCmd.Command, joinedArgs))
+				deny(fmt.Errorf("command `%s` arguments : `%s` not allowed", allowedCmd.Command, originalArgs))
 			}
 		}
 		for search, replace := range allowedCmd.Args.Replace {
 			if re, e := regexp.Compile(search); e == nil {
-				joinedArgs = re.ReplaceAllString(joinedArgs, replace)
-				if newParsedCmd, e := parseCommandLine(allowedCmd.Command + " " + joinedArgs); e == nil {
-					parsedOriginalArgs = newParsedCmd[1:]
-				} else {
-					writeLog("Unable to parse replaced args %s, got %s", joinedArgs, e.Error())
-				}
+				originalArgs = re.ReplaceAllString(originalArgs, replace)
 			} else {
 				writeLog("Unable to compile regex %s, got %s", search, e.Error())
 			}
 		}
 	}
 	if config.Expand_env_vars {
-		for key, arg := range parsedOriginalArgs {
-			parsedOriginalArgs[key] = os.ExpandEnv(arg)
-		}
+		originalArgs = os.ExpandEnv(originalArgs)
 	}
-	cmd := exec.Command(allowedCmd.Command, parsedOriginalArgs...)
+	var cmd *exec.Cmd
+	if config.Use_shell != "" {
+		if config.Use_shell == "default" {
+			if shell, ok := os.LookupEnv("SHELL"); ok {
+				config.Use_shell = shell
+			}
+		}
+		if shellPath, err := exec.LookPath(config.Use_shell); err == nil {
+			cmd = exec.Command(shellPath, "-c", allowedCmd.Command+" "+originalArgs)
+		} else {
+			deny(fmt.Errorf("did not found shell `%s` in path : `%s`", config.Use_shell, err.Error()))
+		}
+	} else {
+		if newParsedCmd, e := parseCommandLine(allowedCmd.Command + " " + originalArgs); e == nil {
+			cmd = exec.Command(allowedCmd.Command, newParsedCmd[1:]...)
+		} else {
+			deny(fmt.Errorf("unable to parse arguments `%s` : `%s`", originalArgs, e.Error()))
+		}
+
+	}
 	user, _ := user.Current()
 	writeLog("RUNNING - user `%s` command `%s`", user.Username, cmd.String())
 	out, err := cmd.Output()

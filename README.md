@@ -27,6 +27,7 @@ command="authcmd"
 - gopkg.in/yaml.v2 to parse yaml config file
 
 ## To-do
+- [ ] Sanitize command if using shell
 - [ ] More tests (and find a way to get coverage)
 - [ ] Better readme (add some use cases)
 - [ ] Comment code

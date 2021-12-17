@@ -16,6 +16,13 @@ enable_logging: false
 # Log file (default : ~/authcmd.log)
 #log_file: /var/log/authcmd.log
 
+# If use_shell is set (to default or a specific shell), command is launch with $shell -c "command"
+# If not, it uses the standard os/exec from Go
+# Notes : 
+#   - if using a shell, env variables will be available to the command
+#   - input command is not sanitized and is a security breach (ie: echo test;rm *)
+#use_shell: default
+
 # Show a help text to the user.  The text is everything after the line
 # with the help_text token to the end of the file.
 help_text: "This is the help text shown, when you send a command line which is not accepted."

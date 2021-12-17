@@ -1,0 +1,4 @@
+allowed_cmd:
+  - command: echo
+
+use_shell: sh

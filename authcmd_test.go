@@ -85,7 +85,7 @@ func TestAuthCmd(t *testing.T) {
 			name:       "forbidden arg",
 			command:    "/bin/echo iwant $MY_SECRET",
 			configFile: "tests/authcmd_test1.yml",
-			want:       "Denied : command `/bin/echo` arguments : `iwant $MY_SECRET` forbidden : regex `\\$`",
+			want:       "Denied : command `/bin/echo` arguments : ` iwant $MY_SECRET` forbidden : regex `\\$`",
 			exitCode:   1,
 		},
 		{
@@ -129,6 +129,13 @@ func TestAuthCmd(t *testing.T) {
 			command:    "echo test",
 			configFile: "tests/authcmd_test6.yml",
 			want:       "test",
+			exitCode:   0,
+		},
+		{
+			name:       "shell",
+			command:    "echo $0",
+			configFile: "tests/authcmd_test7.yml",
+			wantRegex:  ".*/sh",
 			exitCode:   0,
 		},
 	}
