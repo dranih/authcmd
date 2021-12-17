@@ -124,6 +124,13 @@ func TestAuthCmd(t *testing.T) {
 			want:       "$PATH",
 			exitCode:   0,
 		},
+		{
+			name:       "logging",
+			command:    "echo test",
+			configFile: "tests/authcmd_test6.yml",
+			want:       "test",
+			exitCode:   0,
+		},
 	}
 	if os.Getenv("FLAG") == "1" {
 		//Shift args to remove -test.run...

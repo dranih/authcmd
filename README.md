@@ -23,8 +23,13 @@ go build
 command="authcmd" 
 ```
 
+## Dependencies
+- gopkg.in/yaml.v2 to parse yaml config file
+
 ## To-do
 - [ ] More tests (and find a way to get coverage)
 - [ ] Better readme (add some use cases)
 - [ ] Comment code
 - [ ] Add a github pipeline for testing and building
+- [ ] Add a log rotate mecanism
+- [ ] Add a way to distinct clients (maybe remove commands as main args and only take on client arg). This way we could allow/disallow commands to specific users

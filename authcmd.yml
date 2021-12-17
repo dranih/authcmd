@@ -10,6 +10,12 @@ show_denied: false
 # Should we expand the env vars ?
 expand_env_vars: false
 
+# Should we log ?
+enable_logging: false
+
+# Log file (default : ~/authcmd.log)
+#log_file: /var/log/authcmd.log
+
 # Show a help text to the user.  The text is everything after the line
 # with the help_text token to the end of the file.
 help_text: "This is the help text shown, when you send a command line which is not accepted."

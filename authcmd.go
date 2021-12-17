@@ -19,6 +19,8 @@ type Config struct {
 	Show_allowed      bool
 	Show_denied       bool
 	Expand_env_vars   bool
+	Enable_logging    bool
+	Log_file          string
 	Help_text         string
 	Allowed_cmd       []*cmd
 }
@@ -35,6 +37,7 @@ type args struct {
 }
 
 var config *Config
+var logger log.Logger
 
 // https://at.magma-soft.at/sw/blog/posts/The_Only_Way_For_SSH_Forced_Commands/
 func main() {
@@ -108,7 +111,27 @@ func loadConfig() {
 			deny(fmt.Errorf("cannot read config file `%s` got error `%s`", configFile, err.Error()))
 		}
 	} else {
-		log.Printf("Did not found any config file")
+		deny(fmt.Errorf("did not found any config file"))
+	}
+
+	if config.Enable_logging {
+		var err error
+		var logFile *os.File
+		if config.Log_file != "" {
+			logFile, err = os.OpenFile(config.Log_file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+		}
+		if config.Log_file == "" || err != nil {
+			if userHomeDir, e := os.UserHomeDir(); e == nil {
+				logFile, err = os.OpenFile(filepath.Join(userHomeDir, "authcmd.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+			}
+		}
+		// If unable to open log file, no logging
+		if err != nil || logFile == nil {
+			config.Enable_logging = false
+		} else {
+			logger.SetOutput(logFile)
+			logger.SetFlags(log.LstdFlags | log.Lshortfile | log.Lmicroseconds)
+		}
 	}
 
 	// Adding command args to config args
@@ -136,7 +159,7 @@ func fileExists(filepath string) bool {
 
 func deny(err error) {
 	user, _ := user.Current()
-	log.Printf("WARN - Denied user `%s` with error `%s`", user.Username, err.Error())
+	writeLog("WARN - Denied user `%s` with error `%s`", user.Username, err.Error())
 	if config.Show_terse_denied {
 		fmt.Print("Denied")
 	} else {
@@ -166,7 +189,7 @@ func try(allowedCmd *cmd, parsedOriginalArgs []string) {
 					deny(fmt.Errorf("command `%s` arguments : `%s` forbidden : regex `%s`", allowedCmd.Command, joinedArgs, forbiddenRegex))
 				}
 			} else {
-				log.Printf("Unable to compile regex %s, got %s", forbiddenRegex, e.Error())
+				writeLog("Unable to compile regex %s, got %s", forbiddenRegex, e.Error())
 			}
 		}
 		// if no allowed args, all is allowed
@@ -176,7 +199,7 @@ func try(allowedCmd *cmd, parsedOriginalArgs []string) {
 				if matched, e := regexp.MatchString(allowedRegex, joinedArgs); e == nil {
 					found = matched
 				} else {
-					log.Printf("Unable to compile regex %s, got %s", allowedRegex, e.Error())
+					writeLog("Unable to compile regex %s, got %s", allowedRegex, e.Error())
 				}
 			}
 			if !found {
@@ -189,10 +212,10 @@ func try(allowedCmd *cmd, parsedOriginalArgs []string) {
 				if newParsedCmd, e := parseCommandLine(allowedCmd.Command + " " + joinedArgs); e == nil {
 					parsedOriginalArgs = newParsedCmd[1:]
 				} else {
-					log.Printf("Unable to parse replaced args %s, got %s", joinedArgs, e.Error())
+					writeLog("Unable to parse replaced args %s, got %s", joinedArgs, e.Error())
 				}
 			} else {
-				log.Printf("Unable to compile regex %s, got %s", search, e.Error())
+				writeLog("Unable to compile regex %s, got %s", search, e.Error())
 			}
 		}
 	}
@@ -203,7 +226,7 @@ func try(allowedCmd *cmd, parsedOriginalArgs []string) {
 	}
 	cmd := exec.Command(allowedCmd.Command, parsedOriginalArgs...)
 	user, _ := user.Current()
-	log.Printf("RUNNING - user `%s` command `%s`", user.Username, cmd.String())
+	writeLog("RUNNING - user `%s` command `%s`", user.Username, cmd.String())
 	out, err := cmd.Output()
 	fmt.Print(string(out))
 	if err != nil {
@@ -214,6 +237,12 @@ func try(allowedCmd *cmd, parsedOriginalArgs []string) {
 		}
 	}
 	os.Exit(0)
+}
+
+func writeLog(msg string, args ...interface{}) {
+	if config.Enable_logging {
+		logger.Printf(msg, args...)
+	}
 }
 
 // From https://stackoverflow.com/questions/34118732/parse-a-command-line-string-into-flags-and-arguments-in-golang
