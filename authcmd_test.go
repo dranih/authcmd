@@ -97,9 +97,9 @@ func TestAuthCmd(t *testing.T) {
 		},
 		{
 			name:       "replace arg",
-			command:    "/bin/echo I love pizza",
+			command:    "/bin/echo I love pizza and pizza",
 			configFile: "tests/authcmd_test1.yml",
-			want:       "I love pasta",
+			want:       "I love pizza and pasta",
 			exitCode:   0,
 		},
 		{

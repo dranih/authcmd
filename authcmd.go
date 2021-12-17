@@ -53,7 +53,7 @@ func main() {
 		// If allowed starts with / we want exact match
 		if strings.HasPrefix(allowed, "/") {
 			if allowed == parsedOriginalCmd[0] {
-				try(allowedCmd, parsedOriginalCmd)
+				try(allowedCmd, parsedOriginalCmd[1:])
 			} else {
 				continue
 			}
@@ -63,7 +63,7 @@ func main() {
 		if strings.HasPrefix(parsedOriginalCmd[0], "/") {
 			if allowedPath, err := exec.LookPath(allowed); err == nil {
 				if allowedPath == parsedOriginalCmd[0] {
-					try(allowedCmd, parsedOriginalCmd)
+					try(allowedCmd, parsedOriginalCmd[1:])
 				} else {
 					continue
 				}
@@ -72,7 +72,7 @@ func main() {
 
 		// both are relative paths or filenames
 		if allowed == parsedOriginalCmd[0] {
-			try(allowedCmd, parsedOriginalCmd)
+			try(allowedCmd, parsedOriginalCmd[1:])
 		}
 	}
 
@@ -157,13 +157,13 @@ func deny(err error) {
 	os.Exit(1)
 }
 
-func try(allowedCmd *cmd, parsedOriginalCmd []string) {
-	parsedArgs := strings.Join(parsedOriginalCmd[1:], " ")
+func try(allowedCmd *cmd, parsedOriginalArgs []string) {
+	joinedArgs := strings.Join(parsedOriginalArgs, " ")
 	if allowedCmd.Args != nil {
 		for _, forbiddenRegex := range allowedCmd.Args.Forbidden {
-			if matched, e := regexp.MatchString(forbiddenRegex, parsedArgs); e == nil {
+			if matched, e := regexp.MatchString(forbiddenRegex, joinedArgs); e == nil {
 				if matched {
-					deny(fmt.Errorf("command `%s` arguments : `%s` forbidden : regex `%s`", allowedCmd.Command, parsedArgs, forbiddenRegex))
+					deny(fmt.Errorf("command `%s` arguments : `%s` forbidden : regex `%s`", allowedCmd.Command, joinedArgs, forbiddenRegex))
 				}
 			} else {
 				log.Printf("Unable to compile regex %s, got %s", forbiddenRegex, e.Error())
@@ -173,20 +173,23 @@ func try(allowedCmd *cmd, parsedOriginalCmd []string) {
 		if len(allowedCmd.Args.Allowed) > 0 {
 			found := false
 			for _, allowedRegex := range allowedCmd.Args.Allowed {
-				if matched, e := regexp.MatchString(allowedRegex, parsedArgs); e == nil {
+				if matched, e := regexp.MatchString(allowedRegex, joinedArgs); e == nil {
 					found = matched
 				} else {
 					log.Printf("Unable to compile regex %s, got %s", allowedRegex, e.Error())
 				}
 			}
 			if !found {
-				deny(fmt.Errorf("command `%s` arguments : `%s` not allowed", allowedCmd.Command, parsedArgs))
+				deny(fmt.Errorf("command `%s` arguments : `%s` not allowed", allowedCmd.Command, joinedArgs))
 			}
 		}
 		for search, replace := range allowedCmd.Args.Replace {
 			if re, e := regexp.Compile(search); e == nil {
-				for key, arg := range parsedOriginalCmd[1:] {
-					parsedOriginalCmd[key+1] = re.ReplaceAllString(arg, replace)
+				joinedArgs = re.ReplaceAllString(joinedArgs, replace)
+				if newParsedCmd, e := parseCommandLine(allowedCmd.Command + " " + joinedArgs); e == nil {
+					parsedOriginalArgs = newParsedCmd[1:]
+				} else {
+					log.Printf("Unable to parse replaced args %s, got %s", joinedArgs, e.Error())
 				}
 			} else {
 				log.Printf("Unable to compile regex %s, got %s", search, e.Error())
@@ -194,11 +197,11 @@ func try(allowedCmd *cmd, parsedOriginalCmd []string) {
 		}
 	}
 	if config.Expand_env_vars {
-		for key, arg := range parsedOriginalCmd[1:] {
-			parsedOriginalCmd[key+1] = os.ExpandEnv(arg)
+		for key, arg := range parsedOriginalArgs {
+			parsedOriginalArgs[key] = os.ExpandEnv(arg)
 		}
 	}
-	cmd := exec.Command(allowedCmd.Command, parsedOriginalCmd[1:]...)
+	cmd := exec.Command(allowedCmd.Command, parsedOriginalArgs...)
 	user, _ := user.Current()
 	log.Printf("RUNNING - user `%s` command `%s`", user.Username, cmd.String())
 	out, err := cmd.Output()
