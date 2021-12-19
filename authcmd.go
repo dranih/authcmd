@@ -42,14 +42,22 @@ var logger log.Logger
 
 // https://at.magma-soft.at/sw/blog/posts/The_Only_Way_For_SSH_Forced_Commands/
 func main() {
-	loadConfig()
+	ret, output := handle()
+	fmt.Print(output)
+	os.Exit(ret)
+}
+
+func handle() (int, string) {
+	if err := loadConfig(); err != nil {
+		return deny(err)
+	}
 	originalCmd, ok := os.LookupEnv("SSH_ORIGINAL_COMMAND")
 	if !ok || len(originalCmd) <= 0 {
-		deny(fmt.Errorf("direct ssh not allowed, you must specify a command"))
+		return deny(fmt.Errorf("direct ssh not allowed, you must specify a command"))
 	}
 	parsedOriginalCmd, err := parseCommandLine(originalCmd)
 	if err != nil {
-		deny(err)
+		return deny(err)
 	}
 	originalArgs := strings.TrimPrefix(originalCmd, parsedOriginalCmd[0])
 
@@ -58,7 +66,7 @@ func main() {
 		// If allowed starts with / we want exact match
 		if strings.HasPrefix(allowed, "/") {
 			if allowed == parsedOriginalCmd[0] {
-				try(allowedCmd, originalArgs)
+				return try(allowedCmd, originalArgs)
 			} else {
 				continue
 			}
@@ -68,7 +76,7 @@ func main() {
 		if strings.HasPrefix(parsedOriginalCmd[0], "/") {
 			if allowedPath, err := exec.LookPath(allowed); err == nil {
 				if allowedPath == parsedOriginalCmd[0] {
-					try(allowedCmd, originalArgs)
+					return try(allowedCmd, originalArgs)
 				} else {
 					continue
 				}
@@ -77,11 +85,11 @@ func main() {
 
 		// both are relative paths or filenames
 		if allowed == parsedOriginalCmd[0] {
-			try(allowedCmd, originalArgs)
+			return try(allowedCmd, originalArgs)
 		}
 	}
 
-	deny(fmt.Errorf("command `%s` not allowed", parsedOriginalCmd[0]))
+	return deny(fmt.Errorf("command `%s` not allowed", parsedOriginalCmd[0]))
 }
 
 // loadConfig load authcmd.yml file from
@@ -89,7 +97,8 @@ func main() {
 // or ~/authcmd.yml
 // or authcmd.yml
 // and merge allowed command from args
-func loadConfig() {
+func loadConfig() error {
+	config = &Config{}
 	configFile, ok := os.LookupEnv("AUTHCMD_CONFIG_FILE")
 	if !ok || !fileExists(configFile) {
 		userHomeDir, err := os.UserHomeDir()
@@ -110,10 +119,10 @@ func loadConfig() {
 			err = yaml.Unmarshal(yfile, &config)
 		}
 		if err != nil {
-			deny(fmt.Errorf("cannot read config file `%s` got error `%s`", configFile, err.Error()))
+			return fmt.Errorf("cannot read config file `%s` got error `%s`", configFile, err.Error())
 		}
 	} else {
-		deny(fmt.Errorf("did not found any config file"))
+		return fmt.Errorf("did not found any config file")
 	}
 
 	if config.Enable_logging {
@@ -148,6 +157,7 @@ func loadConfig() {
 			config.Allowed_cmd = append(config.Allowed_cmd, &cmd{Command: allowed})
 		}
 	}
+	return nil
 }
 
 // fileExists check if filepath exists as a file
@@ -159,35 +169,36 @@ func fileExists(filepath string) bool {
 	return !fileinfo.IsDir()
 }
 
-func deny(err error) {
+func deny(err error) (int, string) {
 	user, _ := user.Current()
 	writeLog("WARN - Denied user `%s` with error `%s`", user.Username, err.Error())
+	var out string
 	if config.Show_terse_denied {
-		fmt.Print("Denied")
+		out = "Denied\n"
 	} else {
 		if config.Show_denied {
-			fmt.Printf("Denied : %s", err.Error())
+			out = fmt.Sprintf("Denied : %s\n", err.Error())
 		}
 		if config.Show_allowed {
 			var allowedCmds []string
 			for _, allowedCmd := range config.Allowed_cmd {
 				allowedCmds = append(allowedCmds, allowedCmd.Command)
 			}
-			fmt.Printf("Allowed : %s", strings.Join(allowedCmds, ","))
+			out += fmt.Sprintf("Allowed : %s\n", strings.Join(allowedCmds, ","))
 		}
 		if config.Help_text != "" {
-			fmt.Print(config.Help_text)
+			out += fmt.Sprintln(config.Help_text)
 		}
 	}
-	os.Exit(1)
+	return 1, out
 }
 
-func try(allowedCmd *cmd, originalArgs string) {
+func try(allowedCmd *cmd, originalArgs string) (int, string) {
 	if allowedCmd.Args != nil {
 		for _, forbiddenRegex := range allowedCmd.Args.Forbidden {
 			if matched, e := regexp.MatchString(forbiddenRegex, originalArgs); e == nil {
 				if matched {
-					deny(fmt.Errorf("command `%s` arguments : `%s` forbidden : regex `%s`", allowedCmd.Command, originalArgs, forbiddenRegex))
+					return deny(fmt.Errorf("command `%s` arguments : `%s` forbidden : regex `%s`", allowedCmd.Command, originalArgs, forbiddenRegex))
 				}
 			} else {
 				writeLog("Unable to compile regex %s, got %s", forbiddenRegex, e.Error())
@@ -204,7 +215,7 @@ func try(allowedCmd *cmd, originalArgs string) {
 				}
 			}
 			if !found {
-				deny(fmt.Errorf("command `%s` arguments : `%s` not allowed", allowedCmd.Command, originalArgs))
+				return deny(fmt.Errorf("command `%s` arguments : `%s` not allowed", allowedCmd.Command, originalArgs))
 			}
 		}
 		for search, replace := range allowedCmd.Args.Replace {
@@ -228,28 +239,27 @@ func try(allowedCmd *cmd, originalArgs string) {
 		if shellPath, err := exec.LookPath(config.Use_shell); err == nil {
 			cmd = exec.Command(shellPath, "-c", allowedCmd.Command+" "+originalArgs)
 		} else {
-			deny(fmt.Errorf("did not found shell `%s` in path : `%s`", config.Use_shell, err.Error()))
+			return deny(fmt.Errorf("did not found shell `%s` in path : `%s`", config.Use_shell, err.Error()))
 		}
 	} else {
 		if newParsedCmd, e := parseCommandLine(allowedCmd.Command + " " + originalArgs); e == nil {
 			cmd = exec.Command(allowedCmd.Command, newParsedCmd[1:]...)
 		} else {
-			deny(fmt.Errorf("unable to parse arguments `%s` : `%s`", originalArgs, e.Error()))
+			return deny(fmt.Errorf("unable to parse arguments `%s` : `%s`", originalArgs, e.Error()))
 		}
 
 	}
 	user, _ := user.Current()
 	writeLog("RUNNING - user `%s` command `%s`", user.Username, cmd.String())
 	out, err := cmd.Output()
-	fmt.Print(string(out))
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
-			os.Exit(exitError.ExitCode())
+			return exitError.ExitCode(), string(out)
 		} else {
-			os.Exit(1)
+			return 1, string(out)
 		}
 	}
-	os.Exit(0)
+	return 0, string(out)
 }
 
 func writeLog(msg string, args ...interface{}) {

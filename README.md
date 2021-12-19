@@ -28,7 +28,7 @@ command="authcmd" ssh-rsa AAAAB3N....
 
 ## To-do
 - [ ] Sanitize command if using shell
-- [ ] More tests (and find a way to get coverage)
+- [ ] More tests
 - [ ] Better readme (add some use cases)
 - [ ] Comment code
 - [ ] Add a github pipeline for testing and building

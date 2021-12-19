@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 	"testing"
@@ -139,41 +138,24 @@ func TestAuthCmd(t *testing.T) {
 			exitCode:   0,
 		},
 	}
-	if os.Getenv("FLAG") == "1" {
-		//Shift args to remove -test.run...
-		os.Args = os.Args[1:]
-		main()
-		return
-	} else {
-		for _, tc := range tt {
-			t.Run(tc.name, func(t *testing.T) {
-				// Run the test in a subprocess
-				tc.mainArgs = append([]string{"-test.run=TestAuthCmd"}, tc.mainArgs...)
-				cmd := exec.Command(os.Args[0], tc.mainArgs...)
-				cmd.Env = append(os.Environ(), "FLAG=1")
-				cmd.Env = append(cmd.Env, "SSH_ORIGINAL_COMMAND="+tc.command)
-				cmd.Env = append(cmd.Env, "AUTHCMD_CONFIG_FILE="+tc.configFile)
-				out, err := cmd.Output()
-
-				// Cast the error as *exec.ExitError and compare the result
-				e, ok := err.(*exec.ExitError)
-				exitCode := 0
-				if ok {
-					exitCode = e.ExitCode()
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			os.Setenv("SSH_ORIGINAL_COMMAND", tc.command)
+			os.Setenv("AUTHCMD_CONFIG_FILE", tc.configFile)
+			os.Args = append(os.Args[:1], tc.mainArgs...)
+			exitCode, out := handle()
+			if exitCode != tc.exitCode {
+				t.Errorf("Want exit code '%d', got '%d' with command '%s'", tc.exitCode, exitCode, tc.command)
+			}
+			fmt.Println("out:", string(out))
+			if tc.wantRegex != "" {
+				re, _ := regexp.Compile(tc.wantRegex)
+				if !re.MatchString(out) {
+					t.Errorf("Regex '%s' not matching, got '%s'", tc.wantRegex, out)
 				}
-				if exitCode != tc.exitCode {
-					t.Errorf("Want exit code '%d', got '%d' with command '%s'", tc.exitCode, exitCode, tc.command)
-				}
-				fmt.Println("out:", string(out))
-				if tc.wantRegex != "" {
-					re, _ := regexp.Compile(tc.wantRegex)
-					if !re.Match(out) {
-						t.Errorf("Regex '%s' not matching, got '%s'", tc.wantRegex, out)
-					}
-				} else if strings.TrimSpace(string(out)) != tc.want {
-					t.Errorf("Want '%s', got '%s'", tc.want, out)
-				}
-			})
-		}
+			} else if strings.TrimSpace(string(out)) != tc.want {
+				t.Errorf("Want '%s', got '%s'", tc.want, out)
+			}
+		})
 	}
 }
