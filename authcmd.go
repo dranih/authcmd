@@ -69,7 +69,7 @@ func handle() (int, string) {
 		// If allowed starts with / we want exact match
 		if strings.HasPrefix(allowed, "/") {
 			if allowed == parsedOriginalCmd[0] {
-				return try(allowedCmd, originalArgs)
+				return try(allowedCmd, originalArgs, parsedOriginalCmd[1:])
 			} else {
 				continue
 			}
@@ -79,7 +79,7 @@ func handle() (int, string) {
 		if strings.HasPrefix(parsedOriginalCmd[0], "/") {
 			if allowedPath, err := exec.LookPath(allowed); err == nil {
 				if allowedPath == parsedOriginalCmd[0] {
-					return try(allowedCmd, originalArgs)
+					return try(allowedCmd, originalArgs, parsedOriginalCmd[1:])
 				} else {
 					continue
 				}
@@ -88,7 +88,7 @@ func handle() (int, string) {
 
 		// both are relative paths or filenames
 		if allowed == parsedOriginalCmd[0] {
-			return try(allowedCmd, originalArgs)
+			return try(allowedCmd, originalArgs, parsedOriginalCmd[1:])
 		}
 	}
 
@@ -260,7 +260,7 @@ func deny(err error) (int, string) {
 	return 1, out
 }
 
-func try(allowedCmd *cmd, originalArgs string) (int, string) {
+func try(allowedCmd *cmd, originalArgs string, originalArgsParsed []string) (int, string) {
 	if allowedCmd.Args != nil {
 		for _, forbiddenRegex := range allowedCmd.Args.Forbidden {
 			if matched, e := regexp.MatchString(forbiddenRegex, originalArgs); e == nil {
@@ -273,17 +273,23 @@ func try(allowedCmd *cmd, originalArgs string) (int, string) {
 		}
 		// if no allowed args, all is allowed
 		if len(allowedCmd.Args.Allowed) > 0 {
-			found := false
-			for _, allowedRegex := range allowedCmd.Args.Allowed {
-				if matched, e := regexp.MatchString(allowedRegex, originalArgs); e == nil {
-					found = matched
-				} else {
-					writeLog("Unable to compile regex %s, got %s", allowedRegex, e.Error())
+			for _, args := range originalArgsParsed {
+				found := false
+				for _, allowedRegex := range allowedCmd.Args.Allowed {
+					if matched, e := regexp.MatchString(allowedRegex, args); e == nil {
+						if matched {
+							found = matched
+							break
+						}
+					} else {
+						writeLog("Unable to compile regex %s, got %s", allowedRegex, e.Error())
+					}
+				}
+				if !found {
+					return deny(fmt.Errorf("command `%s` arguments : `%s` not allowed", allowedCmd.Command, args))
 				}
 			}
-			if !found {
-				return deny(fmt.Errorf("command `%s` arguments : `%s` not allowed", allowedCmd.Command, originalArgs))
-			}
+
 		}
 		for search, replace := range allowedCmd.Args.Replace {
 			if re, e := regexp.Compile(search); e == nil {

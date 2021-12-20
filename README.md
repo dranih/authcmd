@@ -35,4 +35,6 @@ command="authcmd <tag1> <tag2>" ssh-rsa AAAAB3N....
 - [ ] Comment code
 - [ ] Add a github pipeline for testing and building
 - [ ] Add a log rotate mecanism
+- [ ] Add a validation regex string option for each commands
+- [ ] Add an option to set an env variable (for exemple set different env vars depending on clients)
 - [X] Add a way to distinct clients (maybe remove commands as main args and only take on client arg). This way we could allow/disallow commands to specific users

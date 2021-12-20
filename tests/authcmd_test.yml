@@ -4,8 +4,6 @@ show_denied: true
 # Allowed cmd
 allowed_cmd:
   - command: ls
-    args:
-      allowed: [-l .*]
 
 key_tags:
   test1:
@@ -18,7 +16,7 @@ key_tags:
           replace: {"pizza$":"pasta"}
       - command: ls
         args:
-          allowed: [-l .*]
+          allowed: ["-l", ".*go"]
 
   test2:
     show_terse_denied: true
