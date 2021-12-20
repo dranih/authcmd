@@ -1,4 +1,0 @@
-enable_logging: true
-
-allowed_cmd:
-  - command: echo

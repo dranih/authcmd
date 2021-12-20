@@ -20,8 +20,10 @@ go build
   
 - Add a line to the **~/.ssh.authorized_keys** :
 ```
-command="authcmd" ssh-rsa AAAAB3N....
+command="authcmd <tag1> <tag2>" ssh-rsa AAAAB3N....
 ```
+
+## Configuration
 
 ## Dependencies
 - gopkg.in/yaml.v2 to parse yaml config file
@@ -33,4 +35,4 @@ command="authcmd" ssh-rsa AAAAB3N....
 - [ ] Comment code
 - [ ] Add a github pipeline for testing and building
 - [ ] Add a log rotate mecanism
-- [ ] Add a way to distinct clients (maybe remove commands as main args and only take on client arg). This way we could allow/disallow commands to specific users
+- [X] Add a way to distinct clients (maybe remove commands as main args and only take on client arg). This way we could allow/disallow commands to specific users

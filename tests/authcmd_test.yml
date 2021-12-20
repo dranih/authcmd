@@ -1,0 +1,65 @@
+# Feed back a denied command line to the invoking user
+show_denied: true
+
+# Allowed cmd
+allowed_cmd:
+  - command: ls
+    args:
+      allowed: [-l .*]
+
+key_tags:
+  test1:
+    show_denied: true
+    allowed_cmd:
+      - command: id
+      - command: /bin/echo
+        args: 
+          forbidden: [\$]
+          replace: {"pizza$":"pasta"}
+      - command: ls
+        args:
+          allowed: [-l .*]
+
+  test2:
+    show_terse_denied: true
+    allowed_cmd:
+      - command: echo
+  
+  test3:
+    show_allowed: true
+    show_denied: false
+    allowed_cmd:
+      - command: id
+
+  test4:
+    show_denied: false
+    help_text: "This is a helping text"
+    allowed_cmd:
+      - command: echo
+
+  test5:
+    expand_env_vars: true
+    allowed_cmd:
+      - command: echo
+
+  test6:
+    enable_logging: true
+    expand_env_vars: false
+
+  test7:
+    use_shell: sh
+    expand_env_vars: false
+    allowed_cmd:
+      - command: echo
+        args:
+          forbidden: ["-n"]
+
+  test8: 
+    help_text: "Help text for test8"
+    show_allowed: true
+    allowed_cmd:
+      - command: ls
+        args:
+          allowed: [-r,-t,-a]
+      - command: id
+  

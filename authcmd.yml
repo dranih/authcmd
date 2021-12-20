@@ -27,7 +27,7 @@ enable_logging: false
 # with the help_text token to the end of the file.
 help_text: "This is the help text shown, when you send a command line which is not accepted."
 
-# Allowed cmd
+# Allowed cmd for all
 allowed_cmd:
   - command: id
   - command: /bin/echo
@@ -37,3 +37,13 @@ allowed_cmd:
   - command: ls
     args:
       allowed: [-l .*]
+
+# Override config and allowed commands by a key tag provided as a arg to authcmd
+key_tags:
+  client1: 
+    help_text: "Help text for user1"
+    show_allowed: true
+    allowed_cmd:
+      - command: ls
+        args:
+          allowed: [-r,-t,-a]

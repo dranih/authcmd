@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -15,15 +16,17 @@ import (
 )
 
 type Config struct {
-	Show_terse_denied bool
-	Show_allowed      bool
-	Show_denied       bool
-	Expand_env_vars   bool
-	Enable_logging    bool
+	Show_terse_denied *bool
+	Show_allowed      *bool
+	Show_denied       *bool
+	Expand_env_vars   *bool
+	Enable_logging    *bool
 	Log_file          string
 	Use_shell         string
 	Help_text         string
 	Allowed_cmd       []*cmd
+	Key_tags          map[string]*Config
+	cmd_tags          []string
 }
 
 type cmd struct {
@@ -49,7 +52,7 @@ func main() {
 
 func handle() (int, string) {
 	if err := loadConfig(); err != nil {
-		return deny(err)
+		return 2, fmt.Sprintf("Could not load config file : %s\n", err.Error())
 	}
 	originalCmd, ok := os.LookupEnv("SSH_ORIGINAL_COMMAND")
 	if !ok || len(originalCmd) <= 0 {
@@ -125,7 +128,21 @@ func loadConfig() error {
 		return fmt.Errorf("did not found any config file")
 	}
 
-	if config.Enable_logging {
+	config.cmd_tags = os.Args[1:]
+	// Merging config from key_tags
+	if config.Key_tags != nil {
+		cmd_tags_map := map[string]bool{}
+		for _, tag := range config.cmd_tags {
+			cmd_tags_map[tag] = true
+		}
+		for tag, tagConfig := range config.Key_tags {
+			if cmd_tags_map[tag] {
+				config.mergeConfig(tagConfig)
+			}
+		}
+	}
+
+	if config.Enable_logging != nil && *config.Enable_logging {
 		var err error
 		var logFile *os.File
 		if config.Log_file != "" {
@@ -138,26 +155,72 @@ func loadConfig() error {
 		}
 		// If unable to open log file, no logging
 		if err != nil || logFile == nil {
-			config.Enable_logging = false
+			*config.Enable_logging = false
 		} else {
 			logger.SetOutput(logFile)
 			logger.SetFlags(log.LstdFlags | log.Lshortfile | log.Lmicroseconds)
 		}
 	}
 
-	// Adding command args to config args
-	for _, allowed := range os.Args[1:] {
-		found := false
-		for _, existingCmd := range config.Allowed_cmd {
-			if existingCmd.Command == allowed {
-				found = true
+	return nil
+}
+
+// mergeConfig merges the tagConfig *Config in parameter
+// *bool and string parameters are overrides if in the tagConfig
+// Append allowed_cmd if does not exists, append args options if it does
+func (config *Config) mergeConfig(tagConfig *Config) {
+	fields := reflect.VisibleFields(reflect.TypeOf(struct{ Config }{}))
+	tc := reflect.Indirect(reflect.ValueOf(tagConfig))
+	c := reflect.Indirect(reflect.ValueOf(config))
+
+	for _, field := range fields {
+		if !field.IsExported() {
+			continue
+		}
+		switch field.Type {
+		//Merging *bool and string parameters
+		case reflect.TypeOf((*bool)(nil)), reflect.TypeOf((string)("")):
+			tcbyname := tc.FieldByName(field.Name)
+			cbyname := c.FieldByName(field.Name)
+			if tcbyname.IsValid() && cbyname.IsValid() &&
+				(tcbyname.Kind() == reflect.Ptr && !tcbyname.IsNil()) || (tcbyname.Kind() == reflect.String && !tcbyname.IsZero()) {
+				if cbyname.CanSet() {
+					cbyname.Set(tcbyname)
+				}
 			}
 		}
-		if !found {
-			config.Allowed_cmd = append(config.Allowed_cmd, &cmd{Command: allowed})
+	}
+	//Merging allowed_cmd
+	for _, tagCmd := range tagConfig.Allowed_cmd {
+		existsId := -1
+		for i, existingCmd := range config.Allowed_cmd {
+			if tagCmd.Command == existingCmd.Command {
+				existsId = i
+			}
+		}
+		if existsId == -1 {
+			config.Allowed_cmd = append(config.Allowed_cmd, tagCmd)
+		} else if tagCmd.Args != nil {
+			if config.Allowed_cmd[existsId].Args == nil {
+				config.Allowed_cmd[existsId].Args = &args{}
+			}
+			if tagCmd.Args.Forbidden != nil && len(tagCmd.Args.Forbidden) > 0 {
+				if config.Allowed_cmd[existsId].Args.Forbidden == nil {
+					config.Allowed_cmd[existsId].Args.Forbidden = []string{}
+				}
+				config.Allowed_cmd[existsId].Args.Forbidden = append(config.Allowed_cmd[existsId].Args.Forbidden, tagCmd.Args.Forbidden...)
+			}
+			if tagCmd.Args.Allowed != nil && len(tagCmd.Args.Allowed) > 0 {
+				if config.Allowed_cmd[existsId].Args.Allowed == nil {
+					config.Allowed_cmd[existsId].Args.Allowed = []string{}
+				}
+				config.Allowed_cmd[existsId].Args.Allowed = append(config.Allowed_cmd[existsId].Args.Forbidden, tagCmd.Args.Allowed...)
+			}
+			for a, b := range tagCmd.Args.Replace {
+				config.Allowed_cmd[existsId].Args.Replace[a] = b
+			}
 		}
 	}
-	return nil
 }
 
 // fileExists check if filepath exists as a file
@@ -170,16 +233,20 @@ func fileExists(filepath string) bool {
 }
 
 func deny(err error) (int, string) {
+	logTags := ""
+	if len(config.cmd_tags) > 0 {
+		logTags = fmt.Sprint(" tags `", strings.Join(config.cmd_tags, ","), "`")
+	}
 	user, _ := user.Current()
-	writeLog("WARN - Denied user `%s` with error `%s`", user.Username, err.Error())
+	writeLog("WARN - Denied user `%s`%s error `%s`", user.Username, logTags, err.Error())
 	var out string
-	if config.Show_terse_denied {
+	if config.Show_terse_denied != nil && *config.Show_terse_denied {
 		out = "Denied\n"
 	} else {
-		if config.Show_denied {
+		if config.Show_denied != nil && *config.Show_denied {
 			out = fmt.Sprintf("Denied : %s\n", err.Error())
 		}
-		if config.Show_allowed {
+		if config.Show_allowed != nil && *config.Show_allowed {
 			var allowedCmds []string
 			for _, allowedCmd := range config.Allowed_cmd {
 				allowedCmds = append(allowedCmds, allowedCmd.Command)
@@ -226,7 +293,7 @@ func try(allowedCmd *cmd, originalArgs string) (int, string) {
 			}
 		}
 	}
-	if config.Expand_env_vars {
+	if config.Expand_env_vars != nil && *config.Expand_env_vars {
 		originalArgs = os.ExpandEnv(originalArgs)
 	}
 	var cmd *exec.Cmd
@@ -250,7 +317,11 @@ func try(allowedCmd *cmd, originalArgs string) (int, string) {
 
 	}
 	user, _ := user.Current()
-	writeLog("RUNNING - user `%s` command `%s`", user.Username, cmd.String())
+	logTags := ""
+	if len(config.cmd_tags) > 0 {
+		logTags = fmt.Sprint(" tags `", strings.Join(config.cmd_tags, ","), "`")
+	}
+	writeLog("RUNNING - user `%s`%s command `%s`", user.Username, logTags, cmd.String())
 	out, err := cmd.Output()
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
@@ -263,7 +334,7 @@ func try(allowedCmd *cmd, originalArgs string) (int, string) {
 }
 
 func writeLog(msg string, args ...interface{}) {
-	if config.Enable_logging {
+	if config.Enable_logging != nil && *config.Enable_logging {
 		logger.Printf(msg, args...)
 	}
 }
