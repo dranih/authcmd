@@ -1,14 +1,14 @@
 # Feed back a denied command line to the invoking user
-show_denied: true
+showDenied: true
 
 # Allowed cmd
-allowed_cmd:
+allowedCmd:
   - command: ls
 
-key_tags:
+keyTags:
   test1:
-    show_denied: true
-    allowed_cmd:
+    showDenied: true
+    allowedCmd:
       - command: id
       - command: /bin/echo
         replace: {"pizza$":"pasta","I":"We"}
@@ -19,49 +19,49 @@ key_tags:
           allowed: ["-l", ".*go"]
 
   test2:
-    show_terse_denied: true
-    allowed_cmd:
+    showTerseDenied: true
+    allowedCmd:
       - command: echo
   
   test3:
-    show_allowed: true
-    show_denied: false
-    allowed_cmd:
+    showAllowed: true
+    showDenied: false
+    allowedCmd:
       - command: id
 
   test4:
-    show_denied: false
-    help_text: "This is a helping text"
-    allowed_cmd:
+    showDenied: false
+    helpText: "This is a helping text"
+    allowedCmd:
       - command: echo
 
   test5:
-    expand_env_vars: true
-    allowed_cmd:
+    expandEnvVars: true
+    allowedCmd:
       - command: echo
 
   test6:
-    enable_logging: true
-    expand_env_vars: false
+    enableLogging: true
+    expandEnvVars: false
 
   test7:
-    use_shell: sh
-    expand_env_vars: false
-    allowed_cmd:
+    useShell: sh
+    expandEnvVars: false
+    allowedCmd:
       - command: echo
         args:
           forbidden: ["-n"]
 
   test8: 
-    help_text: "Help text for test8"
-    show_allowed: true
-    allowed_cmd:
+    helpText: "Help text for test8"
+    showAllowed: true
+    allowedCmd:
       - command: ls
         args:
           allowed: [-r,-t,-a]
       - command: id
   
   test9:
-    allowed_cmd:
+    allowedCmd:
       - command: cat
-        must_match: [".*LICENSE$"]
+        mustMatch: [".*LICENSE$"]

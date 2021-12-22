@@ -1,34 +1,34 @@
 # Print 'denied', so a user can figure out the program was not run.
-show_terse_denied: false
+showTerseDenied: false
 
 # Show which commands are allowed
-show_allowed: false
+showAllowed: false
 
 # Feed back a denied command line to the invoking user
-show_denied: false
+showDenied: false
 
 # Should we expand the env vars ?
-expand_env_vars: false
+expandEnvVars: false
 
 # Should we log ?
-enable_logging: false
+enableLogging: false
 
 # Log file (default : ~/authcmd.log)
-#log_file: /var/log/authcmd.log
+#logFile: /var/log/authcmd.log
 
-# If use_shell is set (to default or a specific shell), command is launch with $shell -c "command"
+# If useShell is set (to default or a specific shell), command is launch with $shell -c "command"
 # If not, it uses the standard os/exec from Go
 # Notes : 
 #   - if using a shell, env variables will be available to the command
 #   - input command is not sanitized and is a security breach (ie: echo test;rm *)
-#use_shell: default
+#useShell: default
 
 # Show a help text to the user.  The text is everything after the line
-# with the help_text token to the end of the file.
-help_text: "This is the help text shown, when you send a command line which is not accepted."
+# with the helpText token to the end of the file.
+helpText: "This is the help text shown, when you send a command line which is not accepted."
 
 # Allowed cmd for all
-allowed_cmd:
+allowedCmd:
   - command: id
   - command: /bin/echo
     replace: {"pizza$":"pasta"}
@@ -38,14 +38,14 @@ allowed_cmd:
     args:
       allowed: [-l]
   - command: cat
-    - mustMatch: "~/.*authcmd/.*go"
+    mustMatch: ["~/.*authcmd/.*go"]
 
 # Override config and allowed commands by a key tag provided as a arg to authcmd
-key_tags:
+keyTags:
   client1: 
-    help_text: "Help text for user1"
-    show_allowed: true
-    allowed_cmd:
+    helpText: "Help text for user1"
+    showAllowed: true
+    allowedCmd:
       - command: ls
         args:
           allowed: [-r,-t,-a]

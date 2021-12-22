@@ -12,33 +12,33 @@ import (
 	"regexp"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Show_terse_denied *bool
-	Show_allowed      *bool
-	Show_denied       *bool
-	Expand_env_vars   *bool
-	Enable_logging    *bool
-	Log_file          string
-	Use_shell         string
-	Help_text         string
-	Allowed_cmd       []*cmd
-	Key_tags          map[string]*Config
-	cmd_tags          []string
+	ShowTerseDenied *bool              `yaml:"showTerseDenied"`
+	ShowAllowed     *bool              `yaml:"showAllowed"`
+	ShowDenied      *bool              `yaml:"showDenied"`
+	ExpandEnvVars   *bool              `yaml:"expandEnvVars"`
+	EnableLogging   *bool              `yaml:"enableLogging"`
+	LogFile         string             `yaml:"logFile"`
+	UseShell        string             `yaml:"useShell"`
+	HelpText        string             `yaml:"helpText"`
+	AllowedCmd      []*cmd             `yaml:"allowedCmd"`
+	KeyTags         map[string]*Config `yaml:"keyTags"`
+	cmdTags         []string
 }
 
 type cmd struct {
-	Command    string
-	Args       *args
-	Replace    map[string]string
-	Must_match []string
+	Command   string            `yaml:"command"`
+	Args      *args             `yaml:"args"`
+	Replace   map[string]string `yaml:"replace"`
+	MustMatch []string          `yaml:"mustMatch"`
 }
 
 type args struct {
-	Allowed   []string
-	Forbidden []string
+	Allowed   []string `yaml:"allowed"`
+	Forbidden []string `yaml:"forbidden"`
 }
 
 var config *Config
@@ -65,7 +65,7 @@ func handle() (int, string) {
 	}
 	originalArgs := strings.TrimPrefix(originalCmd, parsedOriginalCmd[0])
 
-	for _, allowedCmd := range config.Allowed_cmd {
+	for _, allowedCmd := range config.AllowedCmd {
 		allowed := allowedCmd.Command
 		// If allowed starts with / we want exact match
 		if strings.HasPrefix(allowed, "/") {
@@ -129,34 +129,34 @@ func loadConfig() error {
 		return fmt.Errorf("did not found any config file")
 	}
 
-	config.cmd_tags = os.Args[1:]
-	// Merging config from key_tags
-	if config.Key_tags != nil {
-		cmd_tags_map := map[string]bool{}
-		for _, tag := range config.cmd_tags {
-			cmd_tags_map[tag] = true
+	config.cmdTags = os.Args[1:]
+	// Merging config from keyTags
+	if config.KeyTags != nil {
+		cmdTagsMap := map[string]bool{}
+		for _, tag := range config.cmdTags {
+			cmdTagsMap[tag] = true
 		}
-		for tag, tagConfig := range config.Key_tags {
-			if cmd_tags_map[tag] {
+		for tag, tagConfig := range config.KeyTags {
+			if cmdTagsMap[tag] {
 				config.mergeConfig(tagConfig)
 			}
 		}
 	}
 
-	if config.Enable_logging != nil && *config.Enable_logging {
+	if config.EnableLogging != nil && *config.EnableLogging {
 		var err error
 		var logFile *os.File
-		if config.Log_file != "" {
-			logFile, err = os.OpenFile(config.Log_file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+		if config.LogFile != "" {
+			logFile, err = os.OpenFile(config.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		}
-		if config.Log_file == "" || err != nil {
+		if config.LogFile == "" || err != nil {
 			if userHomeDir, e := os.UserHomeDir(); e == nil {
 				logFile, err = os.OpenFile(filepath.Join(userHomeDir, "authcmd.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 			}
 		}
 		// If unable to open log file, no logging
 		if err != nil || logFile == nil {
-			*config.Enable_logging = false
+			*config.EnableLogging = false
 		} else {
 			logger.SetOutput(logFile)
 			logger.SetFlags(log.LstdFlags | log.Lshortfile | log.Lmicroseconds)
@@ -168,7 +168,7 @@ func loadConfig() error {
 
 // mergeConfig merges the tagConfig *Config in parameter
 // *bool and string parameters are overrides if in the tagConfig
-// Append allowed_cmd if does not exists, append args options if it does
+// Append allowedCmd if does not exists, append args options if it does
 func (config *Config) mergeConfig(tagConfig *Config) {
 	fields := reflect.VisibleFields(reflect.TypeOf(struct{ Config }{}))
 	tc := reflect.Indirect(reflect.ValueOf(tagConfig))
@@ -191,36 +191,36 @@ func (config *Config) mergeConfig(tagConfig *Config) {
 			}
 		}
 	}
-	//Merging allowed_cmd
-	for _, tagCmd := range tagConfig.Allowed_cmd {
+	//Merging allowedCmd
+	for _, tagCmd := range tagConfig.AllowedCmd {
 		existsId := -1
-		for i, existingCmd := range config.Allowed_cmd {
+		for i, existingCmd := range config.AllowedCmd {
 			if tagCmd.Command == existingCmd.Command {
 				existsId = i
 			}
 		}
 		if existsId == -1 {
-			config.Allowed_cmd = append(config.Allowed_cmd, tagCmd)
+			config.AllowedCmd = append(config.AllowedCmd, tagCmd)
 		} else if tagCmd.Args != nil {
-			if config.Allowed_cmd[existsId].Args == nil {
-				config.Allowed_cmd[existsId].Args = &args{}
+			if config.AllowedCmd[existsId].Args == nil {
+				config.AllowedCmd[existsId].Args = &args{}
 			}
 			if tagCmd.Args.Forbidden != nil && len(tagCmd.Args.Forbidden) > 0 {
-				if config.Allowed_cmd[existsId].Args.Forbidden == nil {
-					config.Allowed_cmd[existsId].Args.Forbidden = []string{}
+				if config.AllowedCmd[existsId].Args.Forbidden == nil {
+					config.AllowedCmd[existsId].Args.Forbidden = []string{}
 				}
-				config.Allowed_cmd[existsId].Args.Forbidden = append(config.Allowed_cmd[existsId].Args.Forbidden, tagCmd.Args.Forbidden...)
+				config.AllowedCmd[existsId].Args.Forbidden = append(config.AllowedCmd[existsId].Args.Forbidden, tagCmd.Args.Forbidden...)
 			}
 			if tagCmd.Args.Allowed != nil && len(tagCmd.Args.Allowed) > 0 {
-				if config.Allowed_cmd[existsId].Args.Allowed == nil {
-					config.Allowed_cmd[existsId].Args.Allowed = []string{}
+				if config.AllowedCmd[existsId].Args.Allowed == nil {
+					config.AllowedCmd[existsId].Args.Allowed = []string{}
 				}
-				config.Allowed_cmd[existsId].Args.Allowed = append(config.Allowed_cmd[existsId].Args.Forbidden, tagCmd.Args.Allowed...)
+				config.AllowedCmd[existsId].Args.Allowed = append(config.AllowedCmd[existsId].Args.Forbidden, tagCmd.Args.Allowed...)
 			}
 			for a, b := range tagCmd.Replace {
-				config.Allowed_cmd[existsId].Replace[a] = b
+				config.AllowedCmd[existsId].Replace[a] = b
 			}
-			config.Allowed_cmd[existsId].Must_match = append(config.Allowed_cmd[existsId].Must_match, tagCmd.Must_match...)
+			config.AllowedCmd[existsId].MustMatch = append(config.AllowedCmd[existsId].MustMatch, tagCmd.MustMatch...)
 		}
 	}
 }
@@ -236,27 +236,27 @@ func fileExists(filepath string) bool {
 
 func deny(err error) (int, string) {
 	logTags := ""
-	if len(config.cmd_tags) > 0 {
-		logTags = fmt.Sprint(" tags `", strings.Join(config.cmd_tags, ","), "`")
+	if len(config.cmdTags) > 0 {
+		logTags = fmt.Sprint(" tags `", strings.Join(config.cmdTags, ","), "`")
 	}
 	user, _ := user.Current()
 	writeLog("WARN - Denied user `%s`%s error `%s`", user.Username, logTags, err.Error())
 	var out string
-	if config.Show_terse_denied != nil && *config.Show_terse_denied {
+	if config.ShowTerseDenied != nil && *config.ShowTerseDenied {
 		out = "Denied\n"
 	} else {
-		if config.Show_denied != nil && *config.Show_denied {
+		if config.ShowDenied != nil && *config.ShowDenied {
 			out = fmt.Sprintf("Denied : %s\n", err.Error())
 		}
-		if config.Show_allowed != nil && *config.Show_allowed {
+		if config.ShowAllowed != nil && *config.ShowAllowed {
 			var allowedCmds []string
-			for _, allowedCmd := range config.Allowed_cmd {
+			for _, allowedCmd := range config.AllowedCmd {
 				allowedCmds = append(allowedCmds, allowedCmd.Command)
 			}
 			out += fmt.Sprintf("Allowed : %s\n", strings.Join(allowedCmds, ","))
 		}
-		if config.Help_text != "" {
-			out += fmt.Sprintln(config.Help_text)
+		if config.HelpText != "" {
+			out += fmt.Sprintln(config.HelpText)
 		}
 	}
 	return 1, out
@@ -296,7 +296,7 @@ func try(allowedCmd *cmd, originalArgs string, originalArgsParsed []string) (int
 			}
 		}
 	}
-	for _, mustMatch := range allowedCmd.Must_match {
+	for _, mustMatch := range allowedCmd.MustMatch {
 		if matched, e := regexp.MatchString(mustMatch, originalArgs); e == nil {
 			if !matched {
 				return deny(fmt.Errorf("command `%s` arguments : `%s` not matching regex `%s`", allowedCmd.Command, originalArgs, mustMatch))
@@ -313,20 +313,20 @@ func try(allowedCmd *cmd, originalArgs string, originalArgsParsed []string) (int
 		}
 	}
 
-	if config.Expand_env_vars != nil && *config.Expand_env_vars {
+	if config.ExpandEnvVars != nil && *config.ExpandEnvVars {
 		originalArgs = os.ExpandEnv(originalArgs)
 	}
 	var cmd *exec.Cmd
-	if config.Use_shell != "" {
-		if config.Use_shell == "default" {
+	if config.UseShell != "" {
+		if config.UseShell == "default" {
 			if shell, ok := os.LookupEnv("SHELL"); ok {
-				config.Use_shell = shell
+				config.UseShell = shell
 			}
 		}
-		if shellPath, err := exec.LookPath(config.Use_shell); err == nil {
+		if shellPath, err := exec.LookPath(config.UseShell); err == nil {
 			cmd = exec.Command(shellPath, "-c", allowedCmd.Command+" "+originalArgs)
 		} else {
-			return deny(fmt.Errorf("did not found shell `%s` in path : `%s`", config.Use_shell, err.Error()))
+			return deny(fmt.Errorf("did not found shell `%s` in path : `%s`", config.UseShell, err.Error()))
 		}
 	} else {
 		if newParsedCmd, e := parseCommandLine(allowedCmd.Command + " " + originalArgs); e == nil {
@@ -338,8 +338,8 @@ func try(allowedCmd *cmd, originalArgs string, originalArgsParsed []string) (int
 	}
 	user, _ := user.Current()
 	logTags := ""
-	if len(config.cmd_tags) > 0 {
-		logTags = fmt.Sprint(" tags `", strings.Join(config.cmd_tags, ","), "`")
+	if len(config.cmdTags) > 0 {
+		logTags = fmt.Sprint(" tags `", strings.Join(config.cmdTags, ","), "`")
 	}
 	writeLog("RUNNING - user `%s`%s command `%s`", user.Username, logTags, cmd.String())
 	out, err := cmd.Output()
@@ -354,7 +354,7 @@ func try(allowedCmd *cmd, originalArgs string, originalArgsParsed []string) (int
 }
 
 func writeLog(msg string, args ...interface{}) {
-	if config.Enable_logging != nil && *config.Enable_logging {
+	if config.EnableLogging != nil && *config.EnableLogging {
 		logger.Printf(msg, args...)
 	}
 }
