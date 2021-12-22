@@ -31,12 +31,14 @@ help_text: "This is the help text shown, when you send a command line which is n
 allowed_cmd:
   - command: id
   - command: /bin/echo
+    replace: {"pizza$":"pasta"}
     args: # Golang regex
       forbidden: [\$]
-      replace: {"pizza$":"pasta"}
   - command: ls
     args:
-      allowed: [-l .*]
+      allowed: [-l]
+  - command: cat
+    - mustMatch: "~/.*authcmd/.*go"
 
 # Override config and allowed commands by a key tag provided as a arg to authcmd
 key_tags:

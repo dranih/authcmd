@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -86,7 +85,7 @@ func TestAuthCmd(t *testing.T) {
 			command:    "/bin/echo iwant $MY_SECRET",
 			mainArgs:   []string{"test1"},
 			configFile: "tests/authcmd_test.yml",
-			want:       "Denied : command `/bin/echo` arguments : ` iwant $MY_SECRET` forbidden : regex `\\$`",
+			want:       "Denied : command `/bin/echo` argument : `$MY_SECRET` forbidden : regex `\\$`",
 			exitCode:   1,
 		},
 		{
@@ -102,7 +101,7 @@ func TestAuthCmd(t *testing.T) {
 			command:    "/bin/echo I love pizza and pizza",
 			mainArgs:   []string{"test1"},
 			configFile: "tests/authcmd_test.yml",
-			want:       "I love pizza and pasta",
+			want:       "We love pizza and pasta",
 			exitCode:   0,
 		},
 		{
@@ -161,6 +160,22 @@ func TestAuthCmd(t *testing.T) {
 			want:       "Denied : command `id` not allowed",
 			exitCode:   1,
 		},
+		{
+			name:       "must match ko",
+			command:    "cat /etc/passwd",
+			configFile: "tests/authcmd_test.yml",
+			mainArgs:   []string{"test9"},
+			want:       "Denied : command `cat` arguments : ` /etc/passwd` not matching regex `.*LICENSE$`",
+			exitCode:   1,
+		},
+		{
+			name:       "must match ok",
+			command:    "cat LICENSE",
+			configFile: "tests/authcmd_test.yml",
+			mainArgs:   []string{"test9"},
+			wantRegex:  "^MIT License",
+			exitCode:   0,
+		},
 	}
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
@@ -171,7 +186,7 @@ func TestAuthCmd(t *testing.T) {
 			if exitCode != tc.exitCode {
 				t.Errorf("Want exit code '%d', got '%d' with command '%s'", tc.exitCode, exitCode, tc.command)
 			}
-			fmt.Println("out:", string(out))
+			//fmt.Println("out:", string(out))
 			if tc.wantRegex != "" {
 				re, _ := regexp.Compile(tc.wantRegex)
 				if !re.MatchString(out) {

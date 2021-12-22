@@ -11,9 +11,9 @@ key_tags:
     allowed_cmd:
       - command: id
       - command: /bin/echo
+        replace: {"pizza$":"pasta","I":"We"}
         args: 
           forbidden: [\$]
-          replace: {"pizza$":"pasta"}
       - command: ls
         args:
           allowed: ["-l", ".*go"]
@@ -61,3 +61,7 @@ key_tags:
           allowed: [-r,-t,-a]
       - command: id
   
+  test9:
+    allowed_cmd:
+      - command: cat
+        must_match: [".*LICENSE$"]

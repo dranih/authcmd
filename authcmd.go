@@ -30,14 +30,15 @@ type Config struct {
 }
 
 type cmd struct {
-	Command string
-	Args    *args
+	Command    string
+	Args       *args
+	Replace    map[string]string
+	Must_match []string
 }
 
 type args struct {
 	Allowed   []string
 	Forbidden []string
-	Replace   map[string]string
 }
 
 var config *Config
@@ -216,9 +217,10 @@ func (config *Config) mergeConfig(tagConfig *Config) {
 				}
 				config.Allowed_cmd[existsId].Args.Allowed = append(config.Allowed_cmd[existsId].Args.Forbidden, tagCmd.Args.Allowed...)
 			}
-			for a, b := range tagCmd.Args.Replace {
-				config.Allowed_cmd[existsId].Args.Replace[a] = b
+			for a, b := range tagCmd.Replace {
+				config.Allowed_cmd[existsId].Replace[a] = b
 			}
+			config.Allowed_cmd[existsId].Must_match = append(config.Allowed_cmd[existsId].Must_match, tagCmd.Must_match...)
 		}
 	}
 }
@@ -262,18 +264,21 @@ func deny(err error) (int, string) {
 
 func try(allowedCmd *cmd, originalArgs string, originalArgsParsed []string) (int, string) {
 	if allowedCmd.Args != nil {
-		for _, forbiddenRegex := range allowedCmd.Args.Forbidden {
-			if matched, e := regexp.MatchString(forbiddenRegex, originalArgs); e == nil {
-				if matched {
-					return deny(fmt.Errorf("command `%s` arguments : `%s` forbidden : regex `%s`", allowedCmd.Command, originalArgs, forbiddenRegex))
+		for _, args := range originalArgsParsed {
+			if allowedCmd.Args.Forbidden != nil {
+				for _, forbiddenRegex := range allowedCmd.Args.Forbidden {
+					if matched, e := regexp.MatchString(forbiddenRegex, args); e == nil {
+						if matched {
+							return deny(fmt.Errorf("command `%s` argument : `%s` forbidden : regex `%s`", allowedCmd.Command, args, forbiddenRegex))
+						}
+					} else {
+						writeLog("Unable to compile regex %s, got %s", forbiddenRegex, e.Error())
+					}
 				}
-			} else {
-				writeLog("Unable to compile regex %s, got %s", forbiddenRegex, e.Error())
 			}
-		}
-		// if no allowed args, all is allowed
-		if len(allowedCmd.Args.Allowed) > 0 {
-			for _, args := range originalArgsParsed {
+
+			// if no allowed args, all is allowed
+			if allowedCmd.Args.Allowed != nil {
 				found := false
 				for _, allowedRegex := range allowedCmd.Args.Allowed {
 					if matched, e := regexp.MatchString(allowedRegex, args); e == nil {
@@ -289,16 +294,25 @@ func try(allowedCmd *cmd, originalArgs string, originalArgsParsed []string) (int
 					return deny(fmt.Errorf("command `%s` arguments : `%s` not allowed", allowedCmd.Command, args))
 				}
 			}
-
-		}
-		for search, replace := range allowedCmd.Args.Replace {
-			if re, e := regexp.Compile(search); e == nil {
-				originalArgs = re.ReplaceAllString(originalArgs, replace)
-			} else {
-				writeLog("Unable to compile regex %s, got %s", search, e.Error())
-			}
 		}
 	}
+	for _, mustMatch := range allowedCmd.Must_match {
+		if matched, e := regexp.MatchString(mustMatch, originalArgs); e == nil {
+			if !matched {
+				return deny(fmt.Errorf("command `%s` arguments : `%s` not matching regex `%s`", allowedCmd.Command, originalArgs, mustMatch))
+			}
+		} else {
+			writeLog("Unable to compile regex %s, got %s", mustMatch, e.Error())
+		}
+	}
+	for search, replace := range allowedCmd.Replace {
+		if re, e := regexp.Compile(search); e == nil {
+			originalArgs = re.ReplaceAllString(originalArgs, replace)
+		} else {
+			writeLog("Unable to compile regex %s, got %s", search, e.Error())
+		}
+	}
+
 	if config.Expand_env_vars != nil && *config.Expand_env_vars {
 		originalArgs = os.ExpandEnv(originalArgs)
 	}
