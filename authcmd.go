@@ -24,16 +24,18 @@ type Config struct {
 	LogFile         string             `yaml:"logFile"`
 	UseShell        string             `yaml:"useShell"`
 	HelpText        string             `yaml:"helpText"`
+	SetEnvVars      map[string]string  `yaml:"setEnvVars"`
 	AllowedCmd      []*cmd             `yaml:"allowedCmd"`
 	KeyTags         map[string]*Config `yaml:"keyTags"`
 	cmdTags         []string
 }
 
 type cmd struct {
-	Command   string            `yaml:"command"`
-	Args      *args             `yaml:"args"`
-	Replace   map[string]string `yaml:"replace"`
-	MustMatch []string          `yaml:"mustMatch"`
+	Command    string            `yaml:"command"`
+	Args       *args             `yaml:"args"`
+	Replace    map[string]string `yaml:"replace"`
+	SetEnvVars map[string]string `yaml:"setEnvVars"`
+	MustMatch  []string          `yaml:"mustMatch"`
 }
 
 type args struct {
@@ -189,6 +191,20 @@ func (config *Config) mergeConfig(tagConfig *Config) {
 					cbyname.Set(tcbyname)
 				}
 			}
+		//Merging map[string]string parameters
+		case reflect.TypeOf((map[string]string)(nil)):
+			tcbyname := tc.FieldByName(field.Name)
+			cbyname := c.FieldByName(field.Name)
+			if tcbyname.IsValid() && cbyname.IsValid() && !tcbyname.IsNil() {
+				if cbyname.IsNil() {
+					cbyname.Set(tcbyname)
+				} else {
+					iter := tcbyname.MapRange()
+					for iter.Next() {
+						cbyname.SetMapIndex(iter.Key(), iter.Value())
+					}
+				}
+			}
 		}
 	}
 	//Merging allowedCmd
@@ -219,6 +235,9 @@ func (config *Config) mergeConfig(tagConfig *Config) {
 			}
 			for a, b := range tagCmd.Replace {
 				config.AllowedCmd[existsId].Replace[a] = b
+			}
+			for a, b := range tagCmd.SetEnvVars {
+				config.AllowedCmd[existsId].SetEnvVars[a] = b
 			}
 			config.AllowedCmd[existsId].MustMatch = append(config.AllowedCmd[existsId].MustMatch, tagCmd.MustMatch...)
 		}
@@ -312,7 +331,7 @@ func try(allowedCmd *cmd, originalArgs string, originalArgsParsed []string) (int
 			writeLog("Unable to compile regex %s, got %s", search, e.Error())
 		}
 	}
-
+	config.setEnvVars(allowedCmd)
 	if config.ExpandEnvVars != nil && *config.ExpandEnvVars {
 		originalArgs = os.ExpandEnv(originalArgs)
 	}
@@ -356,6 +375,15 @@ func try(allowedCmd *cmd, originalArgs string, originalArgsParsed []string) (int
 func writeLog(msg string, args ...interface{}) {
 	if config.EnableLogging != nil && *config.EnableLogging {
 		logger.Printf(msg, args...)
+	}
+}
+
+func (config *Config) setEnvVars(allowedCmd *cmd) {
+	for envVar, value := range config.SetEnvVars {
+		os.Setenv(envVar, value)
+	}
+	for envVar, value := range allowedCmd.SetEnvVars {
+		os.Setenv(envVar, value)
 	}
 }
 

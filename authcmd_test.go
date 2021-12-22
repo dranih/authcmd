@@ -176,6 +176,30 @@ func TestAuthCmd(t *testing.T) {
 			wantRegex:  "^MIT License",
 			exitCode:   0,
 		},
+		{
+			name:       "no env var",
+			command:    "echo x$MY_VAR",
+			mainArgs:   []string{"test5"},
+			configFile: "tests/authcmd_test.yml",
+			want:       "x",
+			exitCode:   0,
+		},
+		{
+			name:       "command env var",
+			command:    "echo $MY_VAR",
+			mainArgs:   []string{"test10"},
+			configFile: "tests/authcmd_test.yml",
+			want:       "test10 echo cmd",
+			exitCode:   0,
+		},
+		{
+			name:       "global env var",
+			command:    "echo $MY_VAR",
+			mainArgs:   []string{"test11"},
+			configFile: "tests/authcmd_test.yml",
+			want:       "test11 global",
+			exitCode:   0,
+		},
 	}
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {

@@ -65,3 +65,17 @@ keyTags:
     allowedCmd:
       - command: cat
         mustMatch: [".*LICENSE$"]
+  
+  test10:
+    expandEnvVars: true
+    allowedCmd:
+      - command: echo
+        setEnvVars:
+          MY_VAR: "test10 echo cmd"
+
+  test11:
+    expandEnvVars: true
+    setEnvVars:
+      MY_VAR: "test11 global"
+    allowedCmd:
+      - command: echo

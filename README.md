@@ -26,15 +26,15 @@ command="authcmd <tag1> <tag2>" ssh-rsa AAAAB3N....
 ## Configuration
 
 ## Dependencies
-- gopkg.in/yaml.v2 to parse yaml config file
+- gopkg.in/yaml.v3 to parse yaml config file
 
 ## To-do
-- [ ] Sanitize command if using shell
+- [ ] Sanitize command if using shell, multi-command option (; delimiter, each command is checked)
 - [ ] More tests
 - [ ] Better readme (add some use cases)
 - [ ] Comment code
 - [ ] Add a github pipeline for testing and building
 - [ ] Add a log rotate mecanism
 - [X] Add a validation regex string option for each commands
-- [ ] Add an option to set an env variable (for exemple set different env vars depending on clients)
+- [X] Add an option to set an env variable (for exemple set different env vars depending on clients)
 - [X] Add a way to distinct clients (maybe remove commands as main args and only take on client arg). This way we could allow/disallow commands to specific users
