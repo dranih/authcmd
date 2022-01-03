@@ -15,18 +15,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Config struct {
-	ShowTerseDenied *bool              `yaml:"showTerseDenied"`
-	ShowAllowed     *bool              `yaml:"showAllowed"`
-	ShowDenied      *bool              `yaml:"showDenied"`
-	ExpandEnvVars   *bool              `yaml:"expandEnvVars"`
-	EnableLogging   *bool              `yaml:"enableLogging"`
-	LogFile         string             `yaml:"logFile"`
-	UseShell        string             `yaml:"useShell"`
-	HelpText        string             `yaml:"helpText"`
-	SetEnvVars      map[string]string  `yaml:"setEnvVars"`
-	AllowedCmd      []*cmd             `yaml:"allowedCmd"`
-	KeyTags         map[string]*Config `yaml:"keyTags"`
+type authcmdConfig struct {
+	ShowTerseDenied *bool                     `yaml:"showTerseDenied"`
+	ShowAllowed     *bool                     `yaml:"showAllowed"`
+	ShowDenied      *bool                     `yaml:"showDenied"`
+	ExpandEnvVars   *bool                     `yaml:"expandEnvVars"`
+	EnableLogging   *bool                     `yaml:"enableLogging"`
+	LogFile         string                    `yaml:"logFile"`
+	UseShell        string                    `yaml:"useShell"`
+	HelpText        string                    `yaml:"helpText"`
+	SetEnvVars      map[string]string         `yaml:"setEnvVars"`
+	AllowedCmd      []*cmd                    `yaml:"allowedCmd"`
+	KeyTags         map[string]*authcmdConfig `yaml:"keyTags"`
 	cmdTags         []string
 }
 
@@ -43,7 +43,7 @@ type args struct {
 	Forbidden []string `yaml:"forbidden"`
 }
 
-var config *Config
+var config *authcmdConfig
 var logger log.Logger
 
 // https://at.magma-soft.at/sw/blog/posts/The_Only_Way_For_SSH_Forced_Commands/
@@ -73,9 +73,8 @@ func handle() (int, string) {
 		if strings.HasPrefix(allowed, "/") {
 			if allowed == parsedOriginalCmd[0] {
 				return try(allowedCmd, originalArgs, parsedOriginalCmd[1:])
-			} else {
-				continue
 			}
+			continue
 		}
 
 		// if original command starts with slash, we check if it is in the path.
@@ -83,9 +82,8 @@ func handle() (int, string) {
 			if allowedPath, err := exec.LookPath(allowed); err == nil {
 				if allowedPath == parsedOriginalCmd[0] {
 					return try(allowedCmd, originalArgs, parsedOriginalCmd[1:])
-				} else {
-					continue
 				}
+				continue
 			}
 		}
 
@@ -104,7 +102,7 @@ func handle() (int, string) {
 // or authcmd.yml
 // and merge allowed command from args
 func loadConfig() error {
-	config = &Config{}
+	config = &authcmdConfig{}
 	configFile, ok := os.LookupEnv("AUTHCMD_CONFIG_FILE")
 	if !ok || !fileExists(configFile) {
 		userHomeDir, err := os.UserHomeDir()
@@ -171,8 +169,8 @@ func loadConfig() error {
 // mergeConfig merges the tagConfig *Config in parameter
 // *bool and string parameters are overrides if in the tagConfig
 // Append allowedCmd if does not exists, append args options if it does
-func (config *Config) mergeConfig(tagConfig *Config) {
-	fields := reflect.VisibleFields(reflect.TypeOf(struct{ Config }{}))
+func (config *authcmdConfig) mergeConfig(tagConfig *authcmdConfig) {
+	fields := reflect.VisibleFields(reflect.TypeOf(struct{ authcmdConfig }{}))
 	tc := reflect.Indirect(reflect.ValueOf(tagConfig))
 	c := reflect.Indirect(reflect.ValueOf(config))
 
@@ -209,37 +207,37 @@ func (config *Config) mergeConfig(tagConfig *Config) {
 	}
 	//Merging allowedCmd
 	for _, tagCmd := range tagConfig.AllowedCmd {
-		existsId := -1
+		existsID := -1
 		for i, existingCmd := range config.AllowedCmd {
 			if tagCmd.Command == existingCmd.Command {
-				existsId = i
+				existsID = i
 			}
 		}
-		if existsId == -1 {
+		if existsID == -1 {
 			config.AllowedCmd = append(config.AllowedCmd, tagCmd)
 		} else if tagCmd.Args != nil {
-			if config.AllowedCmd[existsId].Args == nil {
-				config.AllowedCmd[existsId].Args = &args{}
+			if config.AllowedCmd[existsID].Args == nil {
+				config.AllowedCmd[existsID].Args = &args{}
 			}
 			if tagCmd.Args.Forbidden != nil && len(tagCmd.Args.Forbidden) > 0 {
-				if config.AllowedCmd[existsId].Args.Forbidden == nil {
-					config.AllowedCmd[existsId].Args.Forbidden = []string{}
+				if config.AllowedCmd[existsID].Args.Forbidden == nil {
+					config.AllowedCmd[existsID].Args.Forbidden = []string{}
 				}
-				config.AllowedCmd[existsId].Args.Forbidden = append(config.AllowedCmd[existsId].Args.Forbidden, tagCmd.Args.Forbidden...)
+				config.AllowedCmd[existsID].Args.Forbidden = append(config.AllowedCmd[existsID].Args.Forbidden, tagCmd.Args.Forbidden...)
 			}
 			if tagCmd.Args.Allowed != nil && len(tagCmd.Args.Allowed) > 0 {
-				if config.AllowedCmd[existsId].Args.Allowed == nil {
-					config.AllowedCmd[existsId].Args.Allowed = []string{}
+				if config.AllowedCmd[existsID].Args.Allowed == nil {
+					config.AllowedCmd[existsID].Args.Allowed = []string{}
 				}
-				config.AllowedCmd[existsId].Args.Allowed = append(config.AllowedCmd[existsId].Args.Forbidden, tagCmd.Args.Allowed...)
+				config.AllowedCmd[existsID].Args.Allowed = append(config.AllowedCmd[existsID].Args.Forbidden, tagCmd.Args.Allowed...)
 			}
 			for a, b := range tagCmd.Replace {
-				config.AllowedCmd[existsId].Replace[a] = b
+				config.AllowedCmd[existsID].Replace[a] = b
 			}
 			for a, b := range tagCmd.SetEnvVars {
-				config.AllowedCmd[existsId].SetEnvVars[a] = b
+				config.AllowedCmd[existsID].SetEnvVars[a] = b
 			}
-			config.AllowedCmd[existsId].MustMatch = append(config.AllowedCmd[existsId].MustMatch, tagCmd.MustMatch...)
+			config.AllowedCmd[existsID].MustMatch = append(config.AllowedCmd[existsID].MustMatch, tagCmd.MustMatch...)
 		}
 	}
 }
@@ -365,9 +363,8 @@ func try(allowedCmd *cmd, originalArgs string, originalArgsParsed []string) (int
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
 			return exitError.ExitCode(), string(out)
-		} else {
-			return 1, string(out)
 		}
+		return 1, string(out)
 	}
 	return 0, string(out)
 }
@@ -378,7 +375,7 @@ func writeLog(msg string, args ...interface{}) {
 	}
 }
 
-func (config *Config) setEnvVars(allowedCmd *cmd) {
+func (config *authcmdConfig) setEnvVars(allowedCmd *cmd) {
 	for envVar, value := range config.SetEnvVars {
 		os.Setenv(envVar, value)
 	}
