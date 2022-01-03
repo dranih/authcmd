@@ -5,7 +5,9 @@ The goal is to provide a way to control ssh access to a environnement with allow
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -59,8 +61,7 @@ var logger log.Logger
 
 // Main function - entry point
 func main() {
-	ret, output := handle()
-	fmt.Print(output)
+	ret, _ := handle()
 	os.Exit(ret)
 }
 
@@ -69,7 +70,9 @@ func main() {
 // not in main for testing purpose
 func handle() (int, string) {
 	if err := loadConfig(); err != nil {
-		return 2, fmt.Sprintf("Could not load config file : %s\n", err.Error())
+		msg := fmt.Sprintf("Could not load config file : %s\n", err.Error())
+		fmt.Print(msg)
+		return 2, msg
 	}
 	originalCmd, ok := os.LookupEnv("SSH_ORIGINAL_COMMAND")
 	if !ok || len(originalCmd) <= 0 {
@@ -288,6 +291,9 @@ func deny(err error) (int, string) {
 			out += fmt.Sprintln(config.HelpText)
 		}
 	}
+	if len(out) > 0 {
+		fmt.Print(out)
+	}
 	return 1, out
 }
 
@@ -377,15 +383,21 @@ func try(allowedCmd *cmd, originalArgs string, originalArgsParsed []string) (int
 	if len(config.cmdTags) > 0 {
 		logTags = fmt.Sprint(" tags `", strings.Join(config.cmdTags, ","), "`")
 	}
+
+	var buffer bytes.Buffer
+	mwriter := io.MultiWriter(&buffer, os.Stdout)
+	cmd.Stdout = mwriter
+	cmd.Stderr = mwriter
+
 	writeLog("RUNNING - user `%s`%s command `%s`", user.Username, logTags, cmd.String())
-	out, err := cmd.Output()
+	err := cmd.Run()
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
-			return exitError.ExitCode(), string(out)
+			return exitError.ExitCode(), buffer.String()
 		}
-		return 1, string(out)
+		return 1, buffer.String()
 	}
-	return 0, string(out)
+	return 0, buffer.String()
 }
 
 // writeLog write msg with args to logger if logging enabled

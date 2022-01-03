@@ -77,7 +77,7 @@ func TestAuthCmd(t *testing.T) {
 			name:       "exit code",
 			command:    "ls -l /doesnotexists",
 			configFile: "tests/authcmd_test.yml",
-			want:       "",
+			wantRegex:  "ls: .*doesnotexists.*",
 			exitCode:   2,
 		},
 		{
