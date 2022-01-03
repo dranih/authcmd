@@ -1,5 +1,9 @@
 # authcmd
 
+[![Build Status](https://github.com/dranih/authcmd/workflows/Build%20and%20test/badge.svg)](https://github.com/dranih/authcmd/actions?workflow=Build%20and%20test)
+[![coverage](https://codecov.io/gh/dranih/authcmd/branch/main/graph/badge.svg)](https://codecov.io/gh/dranih/authcmd)
+[![report card](https://goreportcard.com/badge/github.com/dranih/authcmd)](https://goreportcard.com/report/github.com/dranih/authcmd)
+
 This is an attempt to port the 'only' script from [MagmaSoft](https://at.magma-soft.at/sw/blog/posts/The_Only_Way_For_SSH_Forced_Commands).
 The goal is to provide a way to control ssh access to a environnement with allowed/forbidden commands/arguments and replace.
 
@@ -33,7 +37,7 @@ command="authcmd <tag1> <tag2>" ssh-rsa AAAAB3N....
 - [ ] More tests
 - [ ] Better readme (add some use cases)
 - [ ] Comment code
-- [ ] Add a github pipeline for testing and building
+- [X] Add a github pipeline for testing and building
 - [ ] Add a log rotate mecanism
 - [X] Add a validation regex string option for each commands
 - [X] Add an option to set an env variable (for exemple set different env vars depending on clients)
