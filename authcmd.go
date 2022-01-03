@@ -146,12 +146,8 @@ func loadConfig() error {
 	config.cmdTags = os.Args[1:]
 	// Merging config from keyTags
 	if config.KeyTags != nil {
-		cmdTagsMap := map[string]bool{}
 		for _, tag := range config.cmdTags {
-			cmdTagsMap[tag] = true
-		}
-		for tag, tagConfig := range config.KeyTags {
-			if cmdTagsMap[tag] {
+			if tagConfig, exists := config.KeyTags[tag]; exists {
 				config.mergeConfig(tagConfig)
 			}
 		}

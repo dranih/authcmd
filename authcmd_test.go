@@ -138,10 +138,10 @@ func TestAuthCmd(t *testing.T) {
 		},
 		{
 			name:       "shell",
-			command:    "echo $0",
+			command:    `echo "shell is : $0"`,
 			mainArgs:   []string{"test5", "test7"},
 			configFile: "tests/authcmd_test.yml",
-			wantRegex:  ".*/sh",
+			wantRegex:  "shell is : .*/sh",
 			exitCode:   0,
 		},
 		{
@@ -207,10 +207,10 @@ func TestAuthCmd(t *testing.T) {
 			os.Setenv("AUTHCMD_CONFIG_FILE", tc.configFile)
 			os.Args = append(os.Args[:1], tc.mainArgs...)
 			exitCode, out := handle()
+			//fmt.Println("out:", string(out))
 			if exitCode != tc.exitCode {
 				t.Errorf("Want exit code '%d', got '%d' with command '%s'", tc.exitCode, exitCode, tc.command)
 			}
-			//fmt.Println("out:", string(out))
 			if tc.wantRegex != "" {
 				re, _ := regexp.Compile(tc.wantRegex)
 				if !re.MatchString(out) {
