@@ -1,3 +1,7 @@
+/*
+This is an attempt to port the 'only' script from https://at.magma-soft.at/sw/blog/posts/The_Only_Way_For_SSH_Forced_Commands
+The goal is to provide a way to control ssh access to a environnement with allowed/forbidden commands/arguments and replace.
+*/
 package main
 
 import (
@@ -15,6 +19,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// authcmdConfig holds the configuration parsed from the authcmd.yml
+// plus the cmdTags from the cmd arguments
 type authcmdConfig struct {
 	ShowTerseDenied *bool                     `yaml:"showTerseDenied"`
 	ShowAllowed     *bool                     `yaml:"showAllowed"`
@@ -30,6 +36,7 @@ type authcmdConfig struct {
 	cmdTags         []string
 }
 
+// A cmd is the config detail of an allowed cmd from the authcmd.yml config file
 type cmd struct {
 	Command    string            `yaml:"command"`
 	Args       *args             `yaml:"args"`
@@ -38,21 +45,28 @@ type cmd struct {
 	MustMatch  []string          `yaml:"mustMatch"`
 }
 
+// A args is the detail of the allowed and forbidden args of an allowed cmd
 type args struct {
 	Allowed   []string `yaml:"allowed"`
 	Forbidden []string `yaml:"forbidden"`
 }
 
+// config var holds the loaded authcmdConfig from config file
 var config *authcmdConfig
+
+// logger is a global var for logging
 var logger log.Logger
 
-// https://at.magma-soft.at/sw/blog/posts/The_Only_Way_For_SSH_Forced_Commands/
+// Main function - entry point
 func main() {
 	ret, output := handle()
 	fmt.Print(output)
 	os.Exit(ret)
 }
 
+// handle function grabs the command passed to the ssh call from the SSH_ORIGINAL_COMMAND env var
+// and calls the try function to return the return code and the output
+// not in main for testing purpose
 func handle() (int, string) {
 	if err := loadConfig(); err != nil {
 		return 2, fmt.Sprintf("Could not load config file : %s\n", err.Error())
@@ -96,11 +110,11 @@ func handle() (int, string) {
 	return deny(fmt.Errorf("command `%s` not allowed", parsedOriginalCmd[0]))
 }
 
-// loadConfig load authcmd.yml file from
+// loadConfig loads authcmd.yml file from
 // env var AUTHCMD_CONFIG_FILE
 // or ~/authcmd.yml
 // or authcmd.yml
-// and merge allowed command from args
+// using the keyTags passed as args
 func loadConfig() error {
 	config = &authcmdConfig{}
 	configFile, ok := os.LookupEnv("AUTHCMD_CONFIG_FILE")
@@ -166,7 +180,7 @@ func loadConfig() error {
 	return nil
 }
 
-// mergeConfig merges the tagConfig *Config in parameter
+// mergeConfig merges the tagConfig *authcmdConfig in parameter
 // *bool and string parameters are overrides if in the tagConfig
 // Append allowedCmd if does not exists, append args options if it does
 func (config *authcmdConfig) mergeConfig(tagConfig *authcmdConfig) {
@@ -251,6 +265,8 @@ func fileExists(filepath string) bool {
 	return !fileinfo.IsDir()
 }
 
+// deny function formats the error output according to configuration
+// and gives a 1 exit code
 func deny(err error) (int, string) {
 	logTags := ""
 	if len(config.cmdTags) > 0 {
@@ -279,6 +295,13 @@ func deny(err error) (int, string) {
 	return 1, out
 }
 
+// try function goals is to check if the command passed in the ssh call is allowed and hence execute it
+// it checks allowed and forbidden args and MustMatch regex for the whole command line to allow the command
+// if allowed
+// it executes replace regex
+// it sets env vars
+// it runs the command with go os/exec or the specified shell in config
+// it return the return code and output
 func try(allowedCmd *cmd, originalArgs string, originalArgsParsed []string) (int, string) {
 	if allowedCmd.Args != nil {
 		for _, args := range originalArgsParsed {
@@ -369,12 +392,14 @@ func try(allowedCmd *cmd, originalArgs string, originalArgsParsed []string) (int
 	return 0, string(out)
 }
 
+// writeLog write msg with args to logger if logging enabled
 func writeLog(msg string, args ...interface{}) {
 	if config.EnableLogging != nil && *config.EnableLogging {
 		logger.Printf(msg, args...)
 	}
 }
 
+// setEnvVars sets env vars from config
 func (config *authcmdConfig) setEnvVars(allowedCmd *cmd) {
 	for envVar, value := range config.SetEnvVars {
 		os.Setenv(envVar, value)
@@ -384,7 +409,9 @@ func (config *authcmdConfig) setEnvVars(allowedCmd *cmd) {
 	}
 }
 
+// parseCommandLine function returns a string slice of command line arguments from a full command line string
 // From https://stackoverflow.com/questions/34118732/parse-a-command-line-string-into-flags-and-arguments-in-golang
+// Should better use https://github.com/google/shlex ?
 func parseCommandLine(command string) ([]string, error) {
 	var args []string
 	state := "start"

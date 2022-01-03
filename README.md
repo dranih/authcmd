@@ -36,7 +36,7 @@ command="authcmd <tag1> <tag2>" ssh-rsa AAAAB3N....
 - [ ] Sanitize command if using shell, multi-command option (; delimiter, each command is checked)
 - [ ] More tests
 - [ ] Better readme (add some use cases)
-- [ ] Comment code
+- [X] Comment code
 - [X] Add a github pipeline for testing and building
 - [ ] Add a log rotate mecanism
 - [X] Add a validation regex string option for each commands
